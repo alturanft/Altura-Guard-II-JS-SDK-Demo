@@ -1,277 +1,287 @@
 import Head from "next/head";
-import Image from "next/image";
-import { Inter } from "next/font/google";
-import styles from "@/styles/Home.module.css";
-import {utf8ToHex, numberToHex} from '@walletconnect/encoding'
-import { Ref, useEffect, useRef, useState } from "react";
+import { utf8ToHex } from "@walletconnect/encoding";
+import { useRef, useState } from "react";
 import axios from "axios";
-import {ethers} from 'ethers'
+import { ethers } from "ethers";
+import { toast } from "react-toastify";
+import Image from "next/image";
+import { FcCheckmark } from "react-icons/fc";
+import { FiCopy } from "react-icons/fi";
+import styled, { css } from "styled-components";
 
+export const Button = styled.button<{
+  block?: boolean;
+  $loading?: boolean;
+}>`
+  position: relative;
+  display: inline-block;
+  border-radius: 2rem;
+  padding: 12px 20px;
+  transition: 0.3s all;
+  background-color: #4b73ff;
+  color: #fff;
+  font-weight: 500;
+  border: none;
+  box-shadow: none;
+  outline: none;
 
+  ${(props) =>
+    props.$loading &&
+    css`
+      opacity: 0.4;
+      pointer-events: none;
+
+      &:after {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        top: 0;
+        left: 12px;
+        bottom: 0;
+        margin: auto;
+        border: 2px solid transparent;
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: button-loading-spinner 1s ease infinite;
+      }
+    `};
+
+  ${(props) =>
+    props.block &&
+    css`
+      width: 100%;
+    `};
+
+  ${(props) =>
+    props.$loading &&
+    !props.block &&
+    css`
+      padding-left: 40px;
+    `};
+`;
 
 export default function Home() {
-  //styles
-  const inputStyle = {
-    fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
-    padding: "12px 20px",
-    margin: "auto",
-    border: "none",
-    borderRadius: "25px",
-    boxShadow:
-      "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
-    outline: "none",
-    width: "300px",
-    marginBottom: "20px",
-    backgroundColor: "#F8F8F8",
-    color: "#333",
-  };
-
-  const connectStyle = {
-    fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
-    padding: "12px 20px",
-    margin: "auto",
-    border: "none",
-    borderRadius: "25px",
-    boxShadow:
-      "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
-    outline: "none",
-    cursor: "pointer",
-    backgroundColor: "#4B73FF",
-    color: "#FFF",
-    transition: "background-color 0.2s",
-  };
-
-  const reqStyle = {
-    fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
-    padding: "12px 20px",
-    marginBottom: "10px",
-    marginLeft: "auto",
-    marginRight: "auto",
-    border: "none",
-    borderRadius: "25px",
-    boxShadow:
-      "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
-    outline: "none",
-    cursor: "pointer",
-    backgroundColor: "#4B73FF",
-    color: "#FFF",
-    transition: "background-color 0.2s",
-  };
-
-  const titleStyle = {
-    fontFamily: "Montserrat, sans-serif",
-    fontSize: "56px",
-    fontWeight: 700,
-    marginBottom: "25px",
-    color: "transparent",
-    backgroundImage: "linear-gradient(90deg, #4B73FF, #3A5AD8)",
-    backgroundClip: "text",
-    WebkitBackgroundClip: "text",
-    display: "inline",
-  };
-
-
   const guardCode = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState<Boolean>(false);
   const [token, setToken] = useState<string | null>(null);
   const [address, setAddress] = useState<string | null>(null);
-
+  const [signing, setSigning] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [approving, setApproving] = useState(false);
 
   // connection request
   const connectRequest = async () => {
-    setLoading(true);
+    if (!guardCode?.current?.value) {
+      toast.warning("Please enter Altura guard code.");
+      return;
+    }
+
     if (guardCode?.current?.value && !connected) {
+      setLoading(true);
       try {
+        // call altura api to send the guard code from the user
+        const result: { data: { token: string; address: string } } = (
+          await axios.get(
+            "/api/sendRequest?guardCode=" + guardCode.current.value
+          )
+        ).data;
 
-        //call altura api to send the guard code from the user
-        const result: { data: {token: string, address: string} } = (await axios.get(
-          "/api/sendRequest?guardCode=" +
-            guardCode.current.value
-        )).data;
-
-        //set the token and address
-        //the token is used to send requests
-        //you should store a users token in a database
-        //user can revoke this at any point and so can you via the altura api 
+        // set the token and address
+        // the token is used to send requests
+        // you should store a users token in a database
+        // user can revoke this at any point and so can you via the altura api
         setToken(result.data.token);
         setAddress(result.data.address);
         setConnected(true);
-        
-        
       } catch (e: any) {
-        console.log(e.response.data);
-        alert("Failed to send request. Error: " + JSON.stringify(e.response.data.message));
+        toast.error(
+          "Failed to send request. Error: " +
+            JSON.stringify(e.response.data.message)
+        );
       }
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  async function pollForResponse(requestId: string) {
+  const pollForResponse = async (requestId: string) => {
     let responseStatus = 204;
-    var result = null;
+    let result = null;
     while (responseStatus === 204) {
       result = await axios.post(
         `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/getResponse`,
         {
           token,
-          requestId
+          requestId,
         }
       );
-      
+
       responseStatus = result.status;
-      
+
       if (responseStatus === 204) {
         // Wait for 10 seconds before making the next request
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise((resolve) => setTimeout(resolve, 10000));
       }
     }
-  
+
     // Once the response status is not 204, return the result
     return result?.data;
-  }
+  };
 
-  //sign transaction request
+  // sign transaction request
   const signMessageRequest = async () => {
-    setLoading(true);
     if (connected && address && token) {
-    //encode the message
-    const message = utf8ToHex("Altura Guard II Sign Message Demo", true);
-    try {
-    const request: {data: {requestId: string}} = await axios.post(
-      `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-      {
-        token: token,
-        reqParameters: [
-          "signature",
-          message
-        ],
-      }
-    );
-    
-    //expires after 10 minutes and returns 404: invalid request id
-    const result = await pollForResponse(request.data.requestId);
+      setSigning(true);
+      // encode the message
+      const message = utf8ToHex("Altura Guard II Sign Message Demo", true);
+      try {
+        const request: { data: { requestId: string } } = await axios.post(
+          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
+          {
+            token: token,
+            reqParameters: ["signature", message],
+          }
+        );
 
-    if (result != "Rejected")
-    alert("Success, signature: " + result);
-  else
-    alert("Rejected");
-  } catch (e:any) {
-    console.log(e);
-    //expired
-    alert("Rejected");
-    setLoading(false);
-  }
-  }
-    setLoading(false);
+        // expires after 10 minutes and returns 404: invalid request id
+        const result = await pollForResponse(request.data.requestId);
+
+        if (result != "Rejected") {
+          toast.success("Success, signature: " + result);
+        } else {
+          toast.error("Rejected");
+        }
+      } catch (e: any) {
+        // expired
+        toast.error("Rejected");
+      }
+      setSigning(false);
+    }
   };
 
-  //send transaction request
+  // send transaction request
   const sendETHTransactionRequest = async () => {
-    setLoading(true);
     if (connected && address && token) {
-    //encode the amount to send
-    // 0.1 TBNB = 10000000000000000
-    const amountToSend = BigInt("10000000000000000");
-    //get the user address
-    const userAddress = address;
-    try {
-
-    const request: {data: {requestId: string}} = await axios.post(
-      `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-      {
-        token: token,
-        reqParameters: [
-          "transaction",
+      setSending(true);
+      // encode the amount to send
+      // 0.1 TBNB = 10000000000000000
+      const amountToSend = BigInt("10000000000000000");
+      // get the user address
+      const userAddress = address;
+      try {
+        const request: { data: { requestId: string } } = await axios.post(
+          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
           {
-            //from: userAddress,
-            //to: who to send the tx to (burn address in this case)
-            //data: data to send with the tx (0x for just eth transfers)
-            //value: amount to send in hex
-            from: userAddress,
-            to: "0x0000000000000000000000000000000000000000",
-            data: "0x",
-            value: "0x" + amountToSend.toString(16),
-          },
-          97, //chain id
-        ],
+            token: token,
+            reqParameters: [
+              "transaction",
+              {
+                // from: userAddress,
+                // to: who to send the tx to (burn address in this case)
+                // data: data to send with the tx (0x for just eth transfers)
+                // value: amount to send in hex
+                from: userAddress,
+                to: "0x0000000000000000000000000000000000000000",
+                data: "0x",
+                value: "0x" + amountToSend.toString(16),
+              },
+              97, // chain id
+            ],
+          }
+        );
+
+        // in a real situation, should give up after a certain amount of time
+        const result = await pollForResponse(request.data.requestId);
+        if (result != "Rejected") {
+          toast.success("Success, hash: " + result);
+        } else {
+          toast.error("Rejected");
+        }
+      } catch (e: any) {
+        console.log(e);
+        toast.error(e.message);
       }
-    );
-    
-    //in a real situation, should give up after a certain amount of time
-    const result = await pollForResponse(request.data.requestId);
-    if (result != "Rejected")
-      alert("Success, hash: " + result);
-    else
-      alert("Rejected");
-  } catch (e:any) {
-    console.log(e);
-    alert(e.message);
-    setLoading(false);
-  }
-  }
-    setLoading(false);
+      setSending(false);
+    }
   };
 
-  //interact with a smart contract
-  //in this example we will interact with BUSD on BSC Testnet and Approve 0.1 BUSD
+  // interact with a smart contract
+  // in this example we will interact with BUSD on BSC Testnet and Approve 0.1 BUSD
   const sendContractTransactionRequest = async () => {
-    setLoading(true);
     if (connected && token && address) {
-    //get the user address
-    const userAddress = address;
+      setApproving(true);
+      // get the user address
+      const userAddress = address;
 
-    //create the tx object
-    //BUSD contract address: 0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7
-    const contractAddress = '0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7';
-    //Approve function ABI
-    const abi = [{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}];
-    const contract = new ethers.Contract(contractAddress, abi);
+      // create the tx object
+      // BUSD contract address: 0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7
+      const contractAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7";
+      // Approve function ABI
+      const abi = [
+        {
+          inputs: [
+            { internalType: "address", name: "spender", type: "address" },
+            { internalType: "uint256", name: "amount", type: "uint256" },
+          ],
+          name: "approve",
+          outputs: [{ internalType: "bool", name: "", type: "bool" }],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+      ];
+      const contract = new ethers.Contract(contractAddress, abi);
 
-    // Set the parameters for the transaction
-    const spender = userAddress; // the address of the spender
-    const amount = ethers.parseEther('0.1'); // the amount to approve
+      // Set the parameters for the transaction
+      const spender = userAddress; // the address of the spender
+      const amount = ethers.parseEther("0.1"); // the amount to approve
 
-    try {
-    const request: {data: {requestId: string}} = await axios.post(
-      `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-      {
-        token: token,
-        reqParameters: [
-          "transaction",
+      try {
+        const request: { data: { requestId: string } } = await axios.post(
+          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
           {
-            //from: userAddress,
-            //to: who to send the tx to (conttract address in this case)
-            //data: data to send with the tx (using the contract interface to encode the function data)
-            //value: amount to send in hex (0 as we're sending 0 native tokens)
-            from: userAddress,
-            to: contractAddress,
-            data: contract.interface.encodeFunctionData('approve', [spender, amount]),
-            value: "0x0",
-          },
-          97, //chain id
-        ],
-      }
-    );
-    
-    //in a real situation, should give up after a certain amount of time
-    const result = await pollForResponse(request.data.requestId);
-    if (result != "Rejected")
-      alert("Success, hash: " + result);
-    else
-      alert("Rejected");
+            token: token,
+            reqParameters: [
+              "transaction",
+              {
+                // from: userAddress,
+                // to: who to send the tx to (conttract address in this case)
+                // data: data to send with the tx (using the contract interface to encode the function data)
+                // value: amount to send in hex (0 as we're sending 0 native tokens)
+                from: userAddress,
+                to: contractAddress,
+                data: contract.interface.encodeFunctionData("approve", [
+                  spender,
+                  amount,
+                ]),
+                value: "0x0",
+              },
+              97, // chain id
+            ],
+          }
+        );
 
-  } catch (e:any) {
-    console.log(e);
-    alert(e.message);
-    setLoading(false);
-  }
-  }
-    setLoading(false);
+        // in a real situation, should give up after a certain amount of time
+        const result = await pollForResponse(request.data.requestId);
+        if (result != "Rejected") {
+          toast.success("Success, hash: " + result);
+        } else {
+          toast.error("Rejected");
+        }
+      } catch (e: any) {
+        console.log(e);
+        toast.error(e.message);
+      }
+      setApproving(false);
+    }
   };
+
+  const shorter = (str: string | null) =>
+    str === null
+      ? "Unknown"
+      : str?.length > 8
+      ? str.slice(0, 6) + "..." + str.slice(-4)
+      : str;
 
   return (
     <>
@@ -284,77 +294,69 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main
-        style={{
-          backgroundColor: "black",
-          height: "100vh",
-          maxHeight: "100vh",
-          overflow: "hidden",
-          alignContent: "center",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            flexDirection: "column",
-            paddingBottom: "50%",
-            textAlign: "center",
-          }}
-        >
-          <h1 style={titleStyle}>Altura Guard Demo</h1>
-          {!connected ? (
-            <>
-              {" "}
-              <input
-                type="text"
-                id="alturaGuardCode"
-                name="alturaGuardCode"
-                placeholder="Altura Guard Code"
-                ref={guardCode}
-                style={inputStyle}
-              />
-              <button
-                disabled={ loading}
-                onClick={connectRequest}
-                style={connectStyle}
-              >
-                {" "}
-                {!loading ? "Connect" : "Requesting..."}
-              </button>
-            </>
-          ) : (
-            <>
-            <span style={{color: "green", fontWeight: 700, marginBottom: "1px"}} >Connected</span>
-            <span style={{color: "white", fontWeight: 700, marginBottom: "20px", fontSize: "10"}} >{address || "Unknown"}</span>
-              <button
-                disabled={loading}
-                onClick={signMessageRequest}
-                style={reqStyle}
-              >
-                {" "}
-                {!loading ? "Sign Message" : "Requesting..."}
-              </button>
-              <button
-                disabled={loading}
-                onClick={sendETHTransactionRequest}
-                style={reqStyle}
-              >
-                {" "}
-                {!loading ? "Send 0.01 TBNB" : "Requesting..."}
-              </button>
-              <button
-                disabled={loading}
-                onClick={sendContractTransactionRequest}
-                style={reqStyle}
-              >
-                {" "}
-                {!loading ? "Approve 0.1 BUSD" : "Requesting..."}
-              </button>
-            </>
-          )}
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="flex justify-center items-center gap-x-4 sm:gap-x-8 py-16">
+          <Image src="/logo.png" alt="logo" width={48} height={42} />
+          <h1 className="text-3xl sm:text-5xl font-bold text-white">
+            Altura Guard Demo
+          </h1>
         </div>
-      </main>
+
+        {!connected ? (
+          <div className="flex flex-col items-center gap-y-8">
+            <input
+              type="text"
+              placeholder="Altura Guard Code"
+              className="px-5 py-3 rounded-3xl w-72"
+              ref={guardCode}
+            />
+            <Button $loading={loading} onClick={connectRequest}>
+              {!loading ? "Connect" : "Connecting..."}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-center items-center gap-x-8">
+              <span className="flex items-center gap-x-1 text-xl font-semibold text-green-500">
+                <FcCheckmark size={24} /> Connected
+              </span>
+              <span className="flex items-center gap-x-2 text-lg text-white font-bold">
+                {shorter(address)}
+                {address && (
+                  <FiCopy
+                    size={20}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      navigator.clipboard.writeText(address);
+                      toast.success("Copied address to clipboard.");
+                    }}
+                  />
+                )}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-y-4 max-w-xs mx-auto mt-6">
+              <Button block $loading={signing} onClick={signMessageRequest}>
+                Sign Message
+              </Button>
+              <Button
+                block
+                $loading={sending}
+                onClick={sendETHTransactionRequest}
+              >
+                Send 0.01 TBNB
+              </Button>
+              <Button
+                block
+                $loading={approving}
+                onClick={sendContractTransactionRequest}
+              >
+                Approve 0.1 BUSD
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }
