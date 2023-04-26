@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { utf8ToHex } from "@walletconnect/encoding";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { ethers } from "ethers";
 import { toast } from "react-toastify";
@@ -91,6 +91,7 @@ export default function Home() {
         // set the token and address
         // the token is used to send requests
         // you should store a users token in a database
+        // this token cannot be recovered or regenerated unless user revokes, it must be seurely saved.
         // user can revoke this at any point and so can you via the altura api
         setToken(result.data.token);
         setAddress(result.data.address);
@@ -129,7 +130,7 @@ export default function Home() {
     return result?.data;
   };
 
-  // sign transaction request
+  // sign message request
   const signMessageRequest = async () => {
     if (connected && address && token) {
       setSigning(true);
@@ -191,7 +192,6 @@ export default function Home() {
           }
         );
 
-        // in a real situation, should give up after a certain amount of time
         const result = await pollForResponse(request.data.requestId);
         if (result != "Rejected") {
           toast.success("Success, hash: " + result);
@@ -276,6 +276,41 @@ export default function Home() {
     }
   };
 
+  const revokeSession = async () => {
+    await axios.post(`${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/delete`, { token })
+    setToken(null)
+    setConnected(false)
+    setAddress(null)
+  }
+
+  ///////
+  // session manager: check if session is valid
+  ///////
+  const checkSession = async () => {
+    if (token) {
+      try {
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/status`,
+          { token }
+        );
+      } catch (e: any) {
+        setToken(null);
+        setConnected(false);
+        setAddress(null);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      const interval = setInterval(() => {
+        checkSession();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [token]);
+
+
   const shorter = (str: string | null) =>
     str === null
       ? "Unknown"
@@ -352,6 +387,14 @@ export default function Home() {
                 onClick={sendContractTransactionRequest}
               >
                 Approve 0.1 BUSD
+              </Button>
+              <Button
+                block
+                $loading={approving}
+                onClick={revokeSession}
+                className="!bg-red-500"
+              >
+                Revoke Connection
               </Button>
             </div>
           </>
