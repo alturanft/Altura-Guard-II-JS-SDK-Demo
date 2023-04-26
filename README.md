@@ -30,7 +30,7 @@ Edit .env.empty with your API Key
 
 ```bash
 ALTURA_API_KEY = # Your Altura API key that you can get for free at https://app.alturanft.com
-NEXT_PUBLIC_ALTURA_API = "https://api.alturanft.com"
+NEXT_PUBLIC_ALTURA_API = "https://api.alturanft.com" / "https://cloud.alturanft.com" (Live / Testing)
 ```
 
 Install dependencies
