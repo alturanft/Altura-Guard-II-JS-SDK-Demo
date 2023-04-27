@@ -8,6 +8,11 @@ import Image from "next/image";
 import { FcCheckmark } from "react-icons/fc";
 import { FiCopy } from "react-icons/fi";
 import styled, { css } from "styled-components";
+import { Altura } from "@altura/altura-js";
+import { AlturaGuard } from "@altura/altura-js/lib/alturaGuard";
+import { AlturaItem } from "@altura/altura-js/lib/item";
+
+const altura = new Altura("SH1B4NP-MEYMJQN-M1VC7P4-N46N19J");
 
 export const Button = styled.button<{
   block?: boolean;
@@ -70,7 +75,7 @@ export default function Home() {
   const [signing, setSigning] = useState(false);
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
-
+  const [alturaGuard, setAlturaGuard] = useState<AlturaGuard | null>(null);  ;
   // connection request
   const connectRequest = async () => {
     if (!guardCode?.current?.value) {
@@ -80,27 +85,14 @@ export default function Home() {
 
     if (guardCode?.current?.value && !connected) {
       setLoading(true);
-      try {
-        // call altura api to send the guard code from the user
-        const result: { data: { token: string; address: string } } = (
-          await axios.get(
-            "/api/sendRequest?guardCode=" + guardCode.current.value
-          )
-        ).data;
 
-        // set the token and address
-        // the token is used to send requests
-        // you should store a users token in a database
-        // this token cannot be recovered or regenerated unless user revokes, it must be seurely saved.
-        // user can revoke this at any point and so can you via the altura api
-        setToken(result.data.token);
-        setAddress(result.data.address);
+      try {
+        const altura2 = await altura.alturaGuard(guardCode.current.value);
+        setAlturaGuard(altura2);
         setConnected(true);
-      } catch (e: any) {
-        toast.error(
-          "Failed to send request. Error: " +
-            JSON.stringify(e.response.data.message)
-        );
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to connect to Altura Guard");
       }
       setLoading(false);
     }
@@ -132,10 +124,26 @@ export default function Home() {
 
   // sign message request
   const signMessageRequest = async () => {
-    if (connected && address && token) {
+    if (connected) {
       setSigning(true);
+      try {
+        if (!alturaGuard) {
+          toast.warning("Please connect to Altura Guard first.");
+          return;
+        }
+          const signMessageCall = await alturaGuard.signMessage("Altura Guard II Sign Message Demo");
+
+          toast.success("Success, signature: " + signMessageCall
+          );
+     } catch (error) {
+      toast.error(
+        "Failed to sign message. Error: " +
+          JSON.stringify(error)
+      );
+     }
+
       // encode the message
-      const message = utf8ToHex("Altura Guard II Sign Message Demo", true);
+     /* const message = utf8ToHex("Altura Guard II Sign Message Demo", true);
       try {
         const request: { data: { requestId: string } } = await axios.post(
           `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
@@ -156,7 +164,7 @@ export default function Home() {
       } catch (e: any) {
         // expired
         toast.error("Rejected");
-      }
+      }*/
       setSigning(false);
     }
   };
