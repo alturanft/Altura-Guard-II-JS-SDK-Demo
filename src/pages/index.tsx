@@ -10,7 +10,6 @@ import { FiCopy } from "react-icons/fi";
 import styled, { css } from "styled-components";
 import { Altura } from "@altura/altura-js";
 import { AlturaGuard } from "@altura/altura-js/lib/alturaGuard";
-import { AlturaItem } from "@altura/altura-js/lib/item";
 
 const altura = new Altura("SH1B4NP-MEYMJQN-M1VC7P4-N46N19J");
 
@@ -98,29 +97,6 @@ export default function Home() {
     }
   };
 
-  const pollForResponse = async (requestId: string) => {
-    let responseStatus = 204;
-    let result = null;
-    while (responseStatus === 204) {
-      result = await axios.post(
-        `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/getResponse`,
-        {
-          token,
-          requestId,
-        }
-      );
-
-      responseStatus = result.status;
-
-      if (responseStatus === 204) {
-        // Wait for 10 seconds before making the next request
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-      }
-    }
-
-    // Once the response status is not 204, return the result
-    return result?.data;
-  };
 
   // sign message request
   const signMessageRequest = async () => {
@@ -132,7 +108,6 @@ export default function Home() {
           return;
         }
           const signMessageCall = await alturaGuard.signMessage("Altura Guard II Sign Message Demo");
-
           toast.success("Success, signature: " + signMessageCall
           );
      } catch (error) {
@@ -141,75 +116,27 @@ export default function Home() {
           JSON.stringify(error)
       );
      }
-
-      // encode the message
-     /* const message = utf8ToHex("Altura Guard II Sign Message Demo", true);
-      try {
-        const request: { data: { requestId: string } } = await axios.post(
-          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-          {
-            token: token,
-            reqParameters: ["signature", message],
-          }
-        );
-
-        // expires after 10 minutes and returns 404: invalid request id
-        const result = await pollForResponse(request.data.requestId);
-
-        if (result != "Rejected") {
-          toast.success("Success, signature: " + result);
-        } else {
-          toast.error("Rejected");
-        }
-      } catch (e: any) {
-        // expired
-        toast.error("Rejected");
-      }*/
       setSigning(false);
     }
   };
 
-  // send transaction request
   const sendETHTransactionRequest = async () => {
-    if (connected && address && token) {
+    if (connected) {
       setSending(true);
-      // encode the amount to send
-      // 0.1 TBNB = 10000000000000000
-      const amountToSend = BigInt("10000000000000000");
-      // get the user address
-      const userAddress = address;
       try {
-        const request: { data: { requestId: string } } = await axios.post(
-          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-          {
-            token: token,
-            reqParameters: [
-              "transaction",
-              {
-                // from: userAddress,
-                // to: who to send the tx to (burn address in this case)
-                // data: data to send with the tx (0x for just eth transfers)
-                // value: amount to send in hex
-                from: userAddress,
-                to: "0x0000000000000000000000000000000000000000",
-                data: "0x",
-                value: "0x" + amountToSend.toString(16),
-              },
-              97, // chain id
-            ],
-          }
-        );
-
-        const result = await pollForResponse(request.data.requestId);
-        if (result != "Rejected") {
-          toast.success("Success, hash: " + result);
-        } else {
-          toast.error("Rejected");
+        if (!alturaGuard) {
+          toast.warning("Please connect to Altura Guard first.");
+          return;
         }
-      } catch (e: any) {
-        console.log(e);
-        toast.error(e.message);
-      }
+          const sendNativeTokenCall = await alturaGuard.sendNativeToken("10000000000000000",97,"0x8B0eeCABAc71696eb65a63a3a15E3Fc5f83BD3D9");
+          toast.success("Success, hash: " + sendNativeTokenCall
+          );
+     } catch (error) {
+      toast.error(
+        "Failed to send native token. Error: " +
+          JSON.stringify(error)
+      );
+     }
       setSending(false);
     }
   };
@@ -217,96 +144,80 @@ export default function Home() {
   // interact with a smart contract
   // in this example we will interact with BUSD on BSC Testnet and Approve 0.1 BUSD
   const sendContractTransactionRequest = async () => {
-    if (connected && token && address) {
+    if (connected) {
       setApproving(true);
-      // get the user address
-      const userAddress = address;
-
-      // create the tx object
-      // BUSD contract address: 0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7
       const contractAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7";
-      // Approve function ABI
-      const abi = [
-        {
-          inputs: [
-            { internalType: "address", name: "spender", type: "address" },
-            { internalType: "uint256", name: "amount", type: "uint256" },
-          ],
-          name: "approve",
-          outputs: [{ internalType: "bool", name: "", type: "bool" }],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-      ];
-      const contract = new ethers.Contract(contractAddress, abi);
-
-      // Set the parameters for the transaction
-      const spender = userAddress; // the address of the spender
-      const amount = ethers.parseEther("0.1"); // the amount to approve
-
       try {
-        const request: { data: { requestId: string } } = await axios.post(
-          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/request`,
-          {
-            token: token,
-            reqParameters: [
-              "transaction",
-              {
-                // from: userAddress,
-                // to: who to send the tx to (conttract address in this case)
-                // data: data to send with the tx (using the contract interface to encode the function data)
-                // value: amount to send in hex (0 as we're sending 0 native tokens)
-                from: userAddress,
-                to: contractAddress,
-                data: contract.interface.encodeFunctionData("approve", [
-                  spender,
-                  amount,
-                ]),
-                value: "0x0",
-              },
-              97, // chain id
-            ],
-          }
-        );
-
-        // in a real situation, should give up after a certain amount of time
-        const result = await pollForResponse(request.data.requestId);
-        if (result != "Rejected") {
-          toast.success("Success, hash: " + result);
-        } else {
-          toast.error("Rejected");
+        if (!alturaGuard) {
+          toast.warning("Please connect to Altura Guard first.");
+          return;
         }
-      } catch (e: any) {
-        console.log(e);
-        toast.error(e.message);
-      }
-      setApproving(false);
+        const abi = [
+          {
+            inputs: [
+              { internalType: 'address', name: 'spender', type: 'address' },
+              { internalType: 'uint256', name: 'amount', type: 'uint256' },
+            ],
+            name: 'approve',
+            outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+            stateMutability: 'nonpayable',
+            type: 'function',
+          },
+        ];
+          const sendContractTransactionCall = await alturaGuard.sendContractTransaction(contractAddress,"100000000000000000",97,abi);
+          toast.success("Success, hash: " + sendContractTransactionCall
+          );
+     } catch (error) {
+      toast.error(
+        "Failed to send native token. Error: " +
+          JSON.stringify(error)
+      );
+     }
+     setApproving(false);
     }
   };
 
   const revokeSession = async () => {
-    await axios.post(`${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/delete`, { token })
-    setToken(null)
-    setConnected(false)
-    setAddress(null)
+   if (connected) {
+      try {
+        if (!alturaGuard) {
+          toast.warning("Please connect to Altura Guard first.");
+          return;
+        }
+         await alturaGuard.revokeSession();
+          toast.success("Revoked Session! "
+          );
+     } catch (error) {
+      toast.error(
+        "Something went worng!"
+      );
+     }
+    
+     setToken(null)
+     setConnected(false)
+     setAlturaGuard(null)
+     setAddress(null)
+    }
   }
 
   ///////
   // session manager: check if session is valid
   ///////
   const checkSession = async () => {
-    if (token) {
       try {
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_ALTURA_API}/api/alturaguard/status`,
-          { token }
-        );
-      } catch (e: any) {
-        setToken(null);
-        setConnected(false);
-        setAddress(null);
-      }
-    }
+        if (!alturaGuard) {
+          toast.warning("Please connect to Altura Guard first.");
+          return;
+        }
+         const session = await alturaGuard.checkSession();
+          toast.success("Session!" + session
+          );
+     } catch (error) {
+      setToken(null)
+      setConnected(false)
+      setAlturaGuard(null)
+      setAddress(null)
+     }
   };
 
   useEffect(() => {
