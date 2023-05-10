@@ -146,6 +146,8 @@ export default function Home() {
   const sendContractTransactionRequest = async () => {
     if (connected) {
       setApproving(true);
+      
+      const spenderAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A8";
       const contractAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7";
       try {
         if (!alturaGuard) {
@@ -164,7 +166,12 @@ export default function Home() {
             type: 'function',
           },
         ];
-          const sendContractTransactionCall = await alturaGuard.sendContractTransaction(contractAddress,"100000000000000000",97,abi);
+        const contract = new ethers.Contract(contractAddress, abi);
+        const data = contract.interface.encodeFunctionData("approve", [
+          spenderAddress,
+          "100000000000000000",
+        ]);
+          const sendContractTransactionCall = await alturaGuard.sendContractTransaction(contractAddress,97,data);
           toast.success("Success, hash: " + sendContractTransactionCall
           );
      } catch (error) {
