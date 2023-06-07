@@ -44,4 +44,4 @@ Start the server
 ## **Documentation**
 To learn more about the `altura-js` SDK function, please visit our official documentation via: 
 
-https://docs.alturanft.com/altura-developer-api/rest-api
+https://docs.alturanft.com/altura-documentation/js-sdk-reference/installation
