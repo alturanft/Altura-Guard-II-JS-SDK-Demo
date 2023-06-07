@@ -10,8 +10,8 @@ import { FiCopy } from "react-icons/fi";
 import styled, { css } from "styled-components";
 import { Altura } from "@altura/altura-js";
 import { AlturaGuard } from "@altura/altura-js/lib/alturaGuard";
-
-const altura = new Altura("SH1B4NP-MEYMJQN-M1VC7P4-N46N19J");
+require('dotenv').config();
+const altura = new Altura(process.env.ALTURA_API_KEY);
 
 export const Button = styled.button<{
   block?: boolean;
