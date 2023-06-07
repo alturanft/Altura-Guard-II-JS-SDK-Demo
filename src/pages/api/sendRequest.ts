@@ -2,6 +2,7 @@
 import axios from "axios";
 import type { NextApiRequest, NextApiResponse } from "next";
 
+
 type Data = {
   success: Boolean;
   message?: String;

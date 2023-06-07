@@ -8,10 +8,7 @@ import Image from "next/image";
 import { FcCheckmark } from "react-icons/fc";
 import { FiCopy } from "react-icons/fi";
 import styled, { css } from "styled-components";
-import { Altura } from "@altura/altura-js";
-import { AlturaGuard } from "@altura/altura-js/lib/alturaGuard";
 require('dotenv').config();
-const altura = new Altura(process.env.ALTURA_API_KEY);
 
 export const Button = styled.button<{
   block?: boolean;
@@ -74,25 +71,38 @@ export default function Home() {
   const [signing, setSigning] = useState(false);
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [alturaGuard, setAlturaGuard] = useState<AlturaGuard | null>(null);  ;
+  const [alturaGuard, setAlturaGuard] = useState<AlturaGuard | null>(null); 
   // connection request
   const connectRequest = async () => {
     if (!guardCode?.current?.value) {
       toast.warning("Please enter Altura guard code.");
       return;
     }
-
+  
     if (guardCode?.current?.value && !connected) {
       setLoading(true);
-
+  
       try {
-        const altura2 = await altura.alturaGuard(guardCode.current.value);
-        setAlturaGuard(altura2);
-        setConnected(true);
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ guardCode: guardCode.current.value, action: 'connect' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          setAlturaGuard(data.altura2);
+          setConnected(true);
+        } else {
+          throw new Error('Failed to connect to Altura Guard');
+        }
       } catch (error) {
         console.error(error);
         toast.error("Failed to connect to Altura Guard");
       }
+  
       setLoading(false);
     }
   };
@@ -102,20 +112,32 @@ export default function Home() {
   const signMessageRequest = async () => {
     if (connected) {
       setSigning(true);
+  
       try {
         if (!alturaGuard) {
-          toast.warning("Please connect to Altura Guard first.");
+          toast.warning('Please connect to Altura Guard first.');
           return;
         }
-          const signMessageCall = await alturaGuard.signMessage("Altura Guard II Sign Message Demo");
-          toast.success("Success, signature: " + signMessageCall
-          );
-     } catch (error) {
-      toast.error(
-        "Failed to sign message. Error: " +
-          JSON.stringify(error)
-      );
-     }
+  
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'signMessage' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          toast.success('Success, signature: ' + data.signature);
+        } else {
+          throw new Error('Failed to sign message.');
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to sign message. Error: ' + JSON.stringify(error));
+      }
+  
       setSigning(false);
     }
   };
@@ -123,108 +145,132 @@ export default function Home() {
   const sendETHTransactionRequest = async () => {
     if (connected) {
       setSending(true);
+  
       try {
         if (!alturaGuard) {
-          toast.warning("Please connect to Altura Guard first.");
+          toast.warning('Please connect to Altura Guard first.');
           return;
         }
-          const sendNativeTokenCall = await alturaGuard.sendNativeToken("10000000000000000",97,"0x8B0eeCABAc71696eb65a63a3a15E3Fc5f83BD3D9");
-          toast.success("Success, hash: " + sendNativeTokenCall
-          );
-     } catch (error) {
-      toast.error(
-        "Failed to send native token. Error: " +
-          JSON.stringify(error)
-      );
-     }
+  
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'sendETH' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          toast.success('Success, signature: ' + data.signature);
+        } else {
+          throw new Error('Failed to send native token.');
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to send native token. Error: ' + JSON.stringify(error));
+      }
+  
       setSending(false);
     }
   };
-
-  // interact with a smart contract
-  // in this example we will interact with BUSD on BSC Testnet and Approve 0.1 BUSD
   const sendContractTransactionRequest = async () => {
     if (connected) {
       setApproving(true);
-      
-      const spenderAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A8";
-      const contractAddress = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7";
+  
       try {
         if (!alturaGuard) {
-          toast.warning("Please connect to Altura Guard first.");
+          toast.warning('Please connect to Altura Guard first.');
           return;
         }
-        const abi = [
-          {
-            inputs: [
-              { internalType: 'address', name: 'spender', type: 'address' },
-              { internalType: 'uint256', name: 'amount', type: 'uint256' },
-            ],
-            name: 'approve',
-            outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
-            stateMutability: 'nonpayable',
-            type: 'function',
+  
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        ];
-        const contract = new ethers.Contract(contractAddress, abi);
-        const data = contract.interface.encodeFunctionData("approve", [
-          spenderAddress,
-          "100000000000000000",
-        ]);
-          const sendContractTransactionCall = await alturaGuard.sendContractTransaction(contractAddress,97,data);
-          toast.success("Success, hash: " + sendContractTransactionCall
-          );
-     } catch (error) {
-      toast.error(
-        "Failed to send native token. Error: " +
-          JSON.stringify(error)
-      );
-     }
-     setApproving(false);
+          body: JSON.stringify({ action: 'sendContractCall' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          toast.success('Success, signature: ' + data.signature);
+        } else {
+          throw new Error('Failed to approve token.');
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to approve token. Error: ' + JSON.stringify(error));
+      }
+  
+      setApproving(false);
+    }
+  };
+  const revokeSession = async () => {
+    if (connected) {
+      try {
+        if (!alturaGuard) {
+          toast.warning('Please connect to Altura Guard first.');
+          return;
+        }
+  
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'revoke' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          setToken(null)
+          setConnected(false)
+          setAlturaGuard(null)
+          setAddress(null)
+          
+          toast.success(data.signature);
+        } else {
+          throw new Error('Failed to approve token.');
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Something went worng');
+      }
     }
   };
 
-  const revokeSession = async () => {
-   if (connected) {
-      try {
-        if (!alturaGuard) {
-          toast.warning("Please connect to Altura Guard first.");
-          return;
-        }
-         await alturaGuard.revokeSession();
-          toast.success("Revoked Session! "
-          );
-     } catch (error) {
-      toast.error(
-        "Something went worng!"
-      );
-     }
-    
-     setToken(null)
-     setConnected(false)
-     setAlturaGuard(null)
-     setAddress(null)
-    }
-  }
 
-  ///////
-  // session manager: check if session is valid
-  ///////
   const checkSession = async () => {
+    if (connected) {
       try {
         if (!alturaGuard) {
-          toast.warning("Please connect to Altura Guard first.");
+          toast.warning('Please connect to Altura Guard first.');
           return;
         }
-         const session = await alturaGuard.checkSession();
-          toast.success("Session!" + session
-          );
-     } catch (error) {
-      setToken(null)
-      setConnected(false)
-      setAlturaGuard(null)
-      setAddress(null)
-     }
+  
+        const response = await fetch('/api/connectRequest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'checkSession' }),
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          toast.success(data.signature);
+        } else {
+          setToken(null)
+          setConnected(false)
+          setAlturaGuard(null)
+          setAddress(null)
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error('Something went worng');
+      }
+    }
   };
 
   useEffect(() => {
