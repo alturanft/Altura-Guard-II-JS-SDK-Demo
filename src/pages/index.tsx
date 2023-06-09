@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import Image from "next/image";
 import { FcCheckmark } from "react-icons/fc";
 import { FiCopy } from "react-icons/fi";
+import { AlturaGuard } from "@altura/altura-js/lib/alturaGuard";
 import styled, { css } from "styled-components";
 require('dotenv').config();
 
